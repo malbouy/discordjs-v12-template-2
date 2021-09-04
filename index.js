@@ -1,46 +1,56 @@
-const config = require("./config.json");
-const token = config.token
 const Discord = require("discord.js");
 const fs = require("fs");
-const client = new Discord.Client({
-  disableEveryone: true
-});
+const client = new Discord.Client({disableEveryone: true});
 client.commands = new Discord.Collection();
+const config = require("./config.json");
 
-fs.readdir("./commands/", (err, files) => {
+//If u have giveaways, if not remove this...
+const { GiveawaysManager } = require('discord-giveaways');
 
-  if(err) console.log(err);
-
-  let jsfile = files.filter(f => f.split(".").pop() === "js")
-  if(jsfile.length <= 0){
-    console.log("Bruh go get a life, why are there no commands?");
-    return;
-  }
-
-  jsfile.forEach((f, i) =>{
-    let props = require(`./commands/${f}`);
-    console.log(`${f} loaded!`);
-    client.commands.set(props.help.name, props);
-  });
-
+client.giveawaysManager = new GiveawaysManager(client, {
+    storage: "./giveaways.json",
+    updateCountdownEvery: 30000,
+    default: {
+        botsCanWin: false,
+        exemptPermissions: ["MANAGE_SERVER", "ADMINISTRATOR"],
+        embedColor: "#FF0000",
+        reaction: "🎉"
+    }
 });
 
-client.on("ready", async () => {
-  console.log(`${client.user.username} is online`);
+
+client.login(config.token)
+
+client.on('ready', async() => {
+  console.log(`Connected to discord and logged in as ${client.user.tag}`)
+  client.user.setActivity(config.game + ` | ${config.prefix}help`,{ type: 'WATCHING' })
 });
 
-client.on("message", async message => {
-  if(message.author.bot) return;
-  if(message.channel.type === "dm") return;
+fs.readdir('./commands', (err, files) => {
+    if (err) console.log(err)
+    let jsfile = files.filter(f => f.split(".").pop() === "js")
+    if (jsfile.length <= 0) {
+        console.log('No commands have been found why not make some!')
+        return;
+    }
 
-  let prefix = config.prefix;
-  let ctn = message.content.split(" ");
-  let cmd = ctn[0];
-  let args = ctn.slice(1);
-  
-  let commandfile = client.commands.get(cmd.slice(prefix.length));
-  if(commandfile) commandfile.run(client,message,args);
+    jsfile.forEach((file, i) => {
+        let props = require(`./commands/${file}`)
+        console.log(`${file} has been loaded`)
+        client.commands.set(props.help.name, props)
+    })
 
-});
+    client.on('message', async message => {
+        let prefix = config.prefix
 
-client.login(token);
+        if (!message.content.startsWith(prefix)) return
+        if (message.author.bot || message.channel.type === "dm") return
+
+        let messageArray = message.content.split(' ')
+        let cmd = messageArray[0]
+        let args = messageArray.splice(1)
+        let commandFile = client.commands.get(cmd.slice(prefix.length))
+
+        if (commandFile) commandFile.run(client, message, args)
+    })
+})
